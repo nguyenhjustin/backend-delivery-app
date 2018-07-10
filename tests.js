@@ -14,14 +14,26 @@ function PlaceOrder(
   request.post(
     {
       url: Address + "/order", 
-      body: JSON.stringify({
+      json: {
         "origin": [startLatitudeDeg, startLongitudeDeg],
         "destination": [endLatitudeDeg, endLongitudeDeg]
-      })
+      }
     }, 
     function(err, httpResponse, body)
     {
-      console.log("Response POST: " + err + " " + httpResponse + " " + body + "\n");
+      if (!err && httpResponse.statusCode == 200)
+      {
+        console.log("Response POST: " + body.id + " " + body.distance + 
+          " " + body.status);
+      }
+      else if (httpResponse.statusCode == 500)
+      {
+        console.log("Response POST: " + body);
+      }
+      else
+      {
+        console.log("Response POST: " + err + " " + httpResponse + " " + body + "\n");
+      }
     }
   );
 }
@@ -33,13 +45,24 @@ function TakeOrder(id)
   request.put(
     {
       url: Address + "/order/" + id, 
-      body: JSON.stringify({
+      json: {
         "status": "taken"
-      })
+      }
     }, 
     function(err, httpResponse, body)
     {
-      console.log("Response PUT: " + err + " " + httpResponse + " " + body + "\n");
+      if (!err && httpResponse.statusCode == 200)
+      {
+        console.log("Response PUT: " + body.status);
+      }
+      else if (httpResponse.statusCode == 409)
+      {
+        console.log("Response PUT: " + body + "\n");
+      }
+      else
+      {
+        console.log("Response PUT: " + err + " " + httpResponse + " " + body + "\n");
+      }
     }
   );
 }
@@ -52,11 +75,22 @@ function ListOrders(
   
   request.get(
     {
-      url: Address + "/orders?page=" + page + "&limit=" + limit, 
+      url: Address + "/orders",
+      qs: {
+        "page": page,
+        "limit": limit
+      }
     }, 
     function(err, httpResponse, body)
     {
-      console.log("Response GET: " + err + " " + httpResponse + " " + body + "\n");
+      if (!err && httpResponse.statusCode == 200)
+      {
+        console.log("Response GET: " + body);
+      }
+      else
+      {
+        console.log("Response GET: " + err + " " + httpResponse + " " + body + "\n");
+      }    
     }
   );
 }

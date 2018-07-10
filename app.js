@@ -1,25 +1,59 @@
 var express = require('express');
 var app = express();
 
-var bodyParser = require('body-parser');
+app.use(express.json());
 
-app.use(bodyParser.urlencoded({
-  extended: true
-}));
+// Setup routes.
+app.post('/order', PostOrder);
+app.put('/order/:id', PutOrderId);
+app.get('/orders', GetOrders);
 
-app.post('/order', function (req, res) {
-  console.log("Received POST!\n");
+// Start the server.
+var server = app.listen(8080, function () {
+  var host = server.address().address
+  var port = server.address().port
+   
+  console.log("App listening at http://%s:%s", host, port)
+});
 
+/**
+ * Handles the creation of an order from a client.
+ * @param {Request} req The request body contains:
+ * {
+ *   "origin": ["START_LATITUDE", "START_LONGTITUDE"],
+ *   "destination": ["END_LATITUDE", "END_LONGTITUDE"]
+ * }
+ * @param {Response} res The response will send:
+ * Header: HTTP 200, Body:
+ * {
+ *   "id": <order_id>,
+ *   "distance": <total_distance>,
+ *   "status": "UNASSIGN"
+ * }
+ * OR
+ * Header: HTTP 500, Body:
+ * {
+ *   "error": "ERROR_DESCRIPTION"
+ * }
+ */
+function PostOrder(req, res)
+{
   var orderId = 1;
   var dist = 101;
   var error = false;
+
+  var origin = req.body.origin;
+  var destination = req.body.destination;
+
+  console.log("Received POST with origin: " + origin + " and " +
+    "destination: " + destination + "!\n");
+  console.log(req.body);
 
   if (error)
   {
     res.status(500).send({
       "error": "ERROR_DESCRIPTION"
     });
-    res.sendStatus(500);
   }
   else
   {
@@ -29,12 +63,32 @@ app.post('/order', function (req, res) {
       "status": "UNASSIGN"
     });
   }
-});
+}
 
-app.put('/order/:id', function (req, res) {
+/**
+ * Handles the taking of an order from a client.
+ * @param {Request} req The request body contains:
+ * {
+ *   "status":"taken"
+ * }
+ * The request params contains: {int} id - The order id. 
+ * @param {Response} res The response will send:
+ * Header: HTTP 200, Body:
+ * {
+ *   "status": "SUCCESS"
+ * }
+ * OR
+ * Header: HTTP 409, Body:
+ * {
+ *   "error": "ORDER_ALREADY_BEEN_TAKEN"
+ * }
+ */
+function PutOrderId(req, res)
+{
   var id = parseInt(req.params.id);
 
   console.log("Received PUT with id: " + id + "!\n");
+  console.log(req.body);
 
   var error = false;
 
@@ -43,7 +97,6 @@ app.put('/order/:id', function (req, res) {
     res.status(409).send({
       "error": "ORDER_ALREADY_BEEN_TAKEN"
     });
-    res.sendStatus(500);
   }
   else
   {
@@ -51,15 +104,34 @@ app.put('/order/:id', function (req, res) {
       "status": "SUCCESS"
     });
   }
-});
+}
 
-app.get('/orders', function (req, res) {
+/**
+ * 
+ * @param {Request} req The request query string contains:
+ * {
+ *   "page": <page_number>
+ *   "limit": <number_of_orders_per_page>
+ * }
+ * @param {Response} res The response will send:
+ * [
+ *   {
+ *     "id": <order_id>,
+ *     "distance": <total_distance>,
+ *     "status": <ORDER_STATUS>
+ *   },
+ *   ...
+ * ]
+ */
+function GetOrders(req, res)
+{
   var page = parseInt(req.query.page);
   var limit = parseInt(req.query.limit);
 
   console.log(
     "Received GET with page: " + page + " and limit: " + limit + "!\n");
-  
+  console.log(req.body);
+
   var orders = [];
   orders.push({
     "id": 1,
@@ -73,12 +145,4 @@ app.get('/orders', function (req, res) {
   });
 
   res.send(orders);
-});
-
-// Start the server.
-var server = app.listen(8080, function () {
-  var host = server.address().address
-  var port = server.address().port
-   
-  console.log("App listening at http://%s:%s", host, port)
-});
+}

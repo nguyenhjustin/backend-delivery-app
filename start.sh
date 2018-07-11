@@ -1,6 +1,4 @@
-docker build -t backend-delivery-app .
+#!/bin/bash
 
-# Need -d option to run detached?
-docker run backend-delivery-app
-
-# Run tests
+docker-compose build
+docker-compose up -d

@@ -5,8 +5,8 @@ app.use(express.json());
 
 // Start the database.
 var redis = require('redis');
-//var client = redis.createClient(6379, 'redis');
-var client = redis.createClient(6379, "192.168.99.100");
+var client = redis.createClient(6379, 'redis');
+//var client = redis.createClient(6379, "192.168.99.100");
 
 client.on('connect', function() {
  console.log('Redis is now connected!\n');

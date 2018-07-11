@@ -13,8 +13,5 @@ RUN npm install
 # Expose API port to the outside.
 EXPOSE 8080
 
-# Launch application.
-#CMD ["npm","start"]
-
 # Start server.
 CMD ["node","app.js"]

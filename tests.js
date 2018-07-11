@@ -28,7 +28,7 @@ function PlaceOrder(
       }
       else if (httpResponse.statusCode == 500)
       {
-        console.log("Response POST: " + body);
+        console.log("Response POST: " + body.error);
       }
       else
       {
@@ -57,7 +57,7 @@ function TakeOrder(id)
       }
       else if (httpResponse.statusCode == 409)
       {
-        console.log("Response PUT: " + body + "\n");
+        console.log("Response PUT: " + body.error + "\n");
       }
       else
       {

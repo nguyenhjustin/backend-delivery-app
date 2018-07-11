@@ -3,6 +3,11 @@ var express = require('express');
 var app = express();
 app.use(express.json());
 
+// Create Google Maps client.
+var googleMapsClient = require('@google/maps').createClient({
+  key: 'AIzaSyD8voOeC0AU27q7l91viJbnue45Z9eUlLs'
+});
+
 // Start the database.
 var redis = require('redis');
 var client = redis.createClient(6379, 'redis');
@@ -75,37 +80,58 @@ function PostOrder(req, res)
 
   // TODO: Check that orderId doesn't already exist in the database.
   var orderId = uuidv4();
-  // TODO: Use Google Maps API to get distance for the order.
-  var dist = 101;
+  var dist = 0.0;
   var status = "UNASSIGN";
 
-  var batch = client.batch();
-
-  batch.HMSET(OrdersHashPrefix + orderId, 
-    IdField, orderId,
-    DistanceField, dist, 
-    StatusField, status);
-  batch.SADD(OrdersSetKey, orderId);
-
-  batch.EXEC(function(err, replies) {
-    if ( err != null )
+  // Use Google Maps API to get the distance.
+  googleMapsClient.distanceMatrix({
+    origins: [{lat: origin[0], lng: origin[1]}],
+    destinations: [{lat: destination[0], lng: destination[1]}],
+  }, function(err, response) {
+    if (err != null) 
     {
-      console.log("Error: " + err + "\n");
+      console.log("Error: " + err);
 
       res.status(500).send({
         "error": err
       });
+      return;
     }
-    else
-    {
-      console.log(orderId + " " + dist + " " + status);
-      res.status(200).send({
-        [IdField]: orderId,
-        [DistanceField]: dist,
-        [StatusField]: status
-      });
-    }
+
+    console.log(response.json);
+    console.log(response.json["rows"][0].elements[0].distance);
+    dist = response.json["rows"][0].elements[0].distance.value;
+
+    var batch = client.batch();
+
+    batch.HMSET(OrdersHashPrefix + orderId, 
+      IdField, orderId,
+      DistanceField, dist, 
+      StatusField, status);
+    batch.SADD(OrdersSetKey, orderId);
+  
+    batch.EXEC(function(err, replies) {
+      if ( err != null )
+      {
+        console.log("Error: " + err + "\n");
+  
+        res.status(500).send({
+          "error": err
+        });
+      }
+      else
+      {
+        console.log(orderId + " " + dist + " " + status);
+        res.status(200).send({
+          [IdField]: orderId,
+          [DistanceField]: dist,
+          [StatusField]: status
+        });
+      }
+    });
+
   });
+
 }
 
 /**

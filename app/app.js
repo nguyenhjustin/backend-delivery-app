@@ -5,10 +5,11 @@ app.use(express.json());
 
 // Create Google Maps client.
 var googleMapsClient = require('@google/maps').createClient({
-  key: 'AIzaSyD8voOeC0AU27q7l91viJbnue45Z9eUlLs'
+  key: 'AIzaSyD8voOeC0AU27q7l91viJbnue45Z9eUlLs',
+  Promise: Promise
 });
 
-// Start the database.
+// Connect to the database.
 var redis = require('redis');
 var client = redis.createClient(6379, 'redis');
 //var client = redis.createClient(6379, "192.168.99.100");
@@ -33,7 +34,6 @@ var OrdersSetKey = "Orders:Ids";
 var IdField = "id";
 var DistanceField = "distance";
 var StatusField = "status";
-var ErrorDatabase = "Error in database command.";
 var StatusUnassign = "UNASSIGN";
 var StatusTaken = "taken";
 
@@ -74,64 +74,46 @@ function PostOrder(req, res)
 {
   var origin = req.body.origin;
   var destination = req.body.destination;
-
   console.log("Received POST with origin: " + origin + " and " +
     "destination: " + destination + "!\n");
 
   // TODO: Check that orderId doesn't already exist in the database.
   var orderId = uuidv4();
-  var dist = 0.0;
   var status = "UNASSIGN";
 
   // Use Google Maps API to get the distance.
   googleMapsClient.distanceMatrix({
     origins: [{lat: origin[0], lng: origin[1]}],
     destinations: [{lat: destination[0], lng: destination[1]}],
-  }, function(err, response) {
-    if (err != null) 
-    {
-      console.log("Error: " + err);
-
-      res.status(500).send({
-        "error": err
-      });
-      return;
+  })
+  .asPromise()
+  .then(response => { 
+    if (response.status == 200) {
+      console.log(response.json);
+      let distance = response.json["rows"][0].elements[0].distance;
+      console.log(distance);
+      return Promise.resolve(distance.value);
     }
+    else {
+      return Promise.reject("Unable to get distance from Google Maps.");
+    } })
 
-    console.log(response.json);
-    console.log(response.json["rows"][0].elements[0].distance);
-    dist = response.json["rows"][0].elements[0].distance.value;
-
+  .then((distance) => {
     var batch = client.batch();
-
     batch.HMSET(OrdersHashPrefix + orderId, 
       IdField, orderId,
-      DistanceField, dist, 
+      DistanceField, distance, 
       StatusField, status);
     batch.SADD(OrdersSetKey, orderId);
-  
-    batch.EXEC(function(err, replies) {
-      if ( err != null )
-      {
-        console.log("Error: " + err + "\n");
-  
-        res.status(500).send({
-          "error": err
-        });
-      }
-      else
-      {
-        console.log(orderId + " " + dist + " " + status);
-        res.status(200).send({
-          [IdField]: orderId,
-          [DistanceField]: dist,
-          [StatusField]: status
-        });
-      }
-    });
+    batch.EXEC();
 
-  });
+    res.status(200).send({
+      [IdField]: orderId,
+      [DistanceField]: distance,
+      [StatusField]: status }); })
 
+  .catch(error => 
+    HandleError(res, 500, error) );
 }
 
 /**
@@ -155,66 +137,45 @@ function PostOrder(req, res)
 function PutOrderId(req, res)
 {
   var orderId = req.params.id;
-
   console.log("Received PUT with id: " + orderId + "!\n");
 
-  if (req.body.status != StatusTaken)
+  if (req.body.status.toLowerCase() != StatusTaken)
   {
-    // TODO: Is this the correct status code?
-    res.status(409).send({
-      "error": "Request body is invalid."
-    });
-    return;
+    var error = "Request body is invalid.";
+    return HandleError(res, 409, error, error);
   }
 
-  client.HGET(OrdersHashPrefix + orderId, StatusField, function(err, status){
-    if (err != null)
-    {
-      console.log("Error: " + err + "\n");
-
-      // TODO: Is this the correct status code?
-      res.status(409).send({
-        "error": ErrorDatabase
-      });
-      return;
-    }
-
-    if (status == null)
-    {
-      // TODO: Is this the correct status code?
-      res.status(409).send({
-        "error": "ORDER_DOES_NOT_EXIST"
-      });
-    }
-    else if (status == StatusTaken)
-    {
-      res.status(409).send({
-        "error": "ORDER_ALREADY_BEEN_TAKEN"
-      });
-    }
-    else if (status == StatusUnassign)
-    {
-      client.HSET(OrdersHashPrefix + orderId, StatusField, StatusTaken, function(err, reply) {
-        if (err != null)
-        {
-          console.log("Error: " + err + "\n");
-  
-          // TODO: Is this the correct status code?
-          res.status(409).send({
-            "error": ErrorDatabase
-          });
+  Promise.resolve()
+  .then(() => {
+    return new Promise((resolve, reject) => { 
+      client.HGET(OrdersHashPrefix + orderId, StatusField, (err, status) => {
+        if (err) {
+          reject(err);
         }
-        else
-        {
-          res.status(200).send({
-            "status": "SUCCESS"
-          });
+        else {
+          resolve(status);
         }
-      });
+      })
+    }); 
+  })
+
+  .then((status) => {
+    if (status == null) {
+      return Promise.reject("ORDER_DOES_NOT_EXIST");
     }
+    else if (status.toLowerCase() == StatusTaken) {
+      return Promise.reject("ORDER_ALREADY_BEEN_TAKEN");
+    }
+    else if (status == StatusUnassign) {
+      client.HSET(OrdersHashPrefix + orderId, StatusField, StatusTaken);
+      res.status(200).send({ "status": "SUCCESS" }); 
+    }
+    else {
+      return Promise.reject("Unknown order status: " + status);
+    } })
 
-  });
-
+  .catch(error => 
+    HandleError(res, 409, error) );
 }
 
 /**
@@ -249,45 +210,58 @@ function GetOrders(req, res)
     return;
   }
 
-  client.SMEMBERS(OrdersSetKey, function(err, orderIds) {
-    if ( err != null )
-    {
-      console.log("Error: " + err + "\n");
-      res.send(orders);
-      return;
-    }
+  Promise.resolve()
+  .then(() => {
+    return new Promise((resolve, reject) => { 
+      client.SMEMBERS(OrdersSetKey, (err, orderIds) => {
+        if (err) {
+          reject(err);
+        }
+        else {
+          resolve(orderIds);
+        }
+      })
+    }); 
+  })
 
+  .then((orderIds) => {
     var batch = client.batch();
-
     for (var i = 0; i < orderIds.length; i++)
     {
       batch.HGETALL(OrdersHashPrefix + orderIds[i]);
     }
 
-    batch.EXEC(function(err, objects) {
-      if ( err != null )
-      {
-        console.log("Error: " + err + "\n");
-        res.send(orders);
-        return;
-      }
+    return new Promise((resolve, reject) => { 
+      batch.EXEC((err, objects) => {
+        if (err) {
+          reject(err);
+        }
+        else {
+          resolve(objects);
+        } 
+      }) 
+    }); 
+  })
+  
+  .then((objects) => {
+    var startIndex = (page - 1) * limit;
+    var counter = 0;
+    for (var i = startIndex; i < objects.length && counter < limit; i++)
+    {
+      orders.push(objects[i]);
+      counter++;
+    }
 
-      // TODO: Get the objects back based on the time their order was put in.
-      //       For instance, the latest order should be at the end of the array.
+    console.log(orders.length);
+    res.send(orders);
+  })
 
-      var startIndex = (page - 1) * limit;
-      var counter = 0;
-      for (var i = startIndex; i < objects.length && counter < limit; i++)
-      {
-        orders.push(objects[i]);
-        counter++;
-      }
+  .catch(error => {
+    console.log(error);
+    res.send(orders); });
+}
 
-      console.log(orders.length);
-
-      res.send(orders);
-    });
-
-  });
-
+function HandleError(res, statusCode, error) {
+  console.log("Error: " + error);
+  res.status(statusCode).send( { "error": error } );
 }

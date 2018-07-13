@@ -84,6 +84,7 @@ function PostOrder(req, res)
   if (isNaN(origin[0]) || isNaN(origin[1]) || isNaN(destination[0]) || isNaN(destination[1]))
   {
     HandleError(res, 500, "Body's origin or destination is invalid.");
+    return;
   }
 
   // TODO: Check that orderId doesn't already exist in the database.
@@ -213,7 +214,7 @@ function GetOrders(req, res)
   console.log(
     "Received GET with page: " + page + " and limit: " + limit + "!\n");
 
-  if (isNaN(page) || isNaN(limit) || page < 1 || limit < 1)
+  if (!Number.isInteger(page) || !Number.isInteger(limit) || page < 1 || limit < 1)
   {
     res.send(orders);
     return;

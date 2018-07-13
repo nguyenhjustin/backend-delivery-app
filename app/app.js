@@ -43,11 +43,11 @@ app.put('/order/:id', PutOrderId);
 app.get('/orders', GetOrders);
 
 // Start the server.
-var server = app.listen(8080, function () {
-  var host = server.address().address
-  var port = server.address().port
+var server = app.listen(8080, function() {
+  var host = server.address().address;
+  var port = server.address().port;
    
-  console.log("App listening at http://%s:%s", host, port)
+  console.log("App listening at http://%s:%s", host, port);
 });
 
 /**

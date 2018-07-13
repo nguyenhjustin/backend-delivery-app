@@ -1,7 +1,8 @@
 var request = require('request');
+var expect = require('chai').expect;
 
-var Address = "http://192.168.99.100:8080";
-//var Address = "http://localhost:8080";
+//var Address = "http://192.168.99.100:8080";
+var Address = "http://localhost:8080";
 
 async function PlaceOrder(
   startLatitudeDeg,
@@ -114,4 +115,74 @@ async function Test()
   await ListOrders(1, 10); // 10
 }
 
-Test();
+//Test();
+
+var StatusUnassign = "UNASSIGN";
+var StatusTaken = "taken";
+
+describe('backend delivery app tests', function () {
+  before(async () => {
+    app = require('../app.js');
+  });
+
+  var persist = "1";
+
+  it('should return 200', function(done) {
+    var options = GetOptionsForPlaceOrder(
+      33.9093817, -118.4238669, 33.8915236, -118.373441);
+    request.post(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body.status).to.equal(StatusUnassign);
+      expect(body.distance).to.equal(6412);
+    done();
+    });
+  });
+
+  it('var test', function(done) {
+    console.log("when does this run");
+    done();
+  });
+
+  after(async () => {
+    require('../app.js').stop();
+  });
+});
+
+function GetOptionsForPlaceOrder(
+  startLatitudeDeg,
+  startLongitudeDeg,
+  endLatitudeDeg,
+  endLongitudeDeg
+)
+{
+  return {
+    url: Address + "/order", 
+    json: {
+      "origin": [startLatitudeDeg, startLongitudeDeg],
+      "destination": [endLatitudeDeg, endLongitudeDeg]
+    }
+  };
+}
+
+function GetOptionsForTakeOrder(id)
+{
+  return {
+    url: Address + "/order/" + id, 
+    json: {
+      "status": "taken"
+    }
+  };
+}
+
+function GetOptionsForListOrders(
+  page,
+  limit)
+{
+  return {
+    url: Address + "/orders",
+    qs: {
+      "page": page,
+      "limit": limit
+    }
+  };
+}

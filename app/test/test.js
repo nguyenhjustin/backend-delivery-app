@@ -85,7 +85,6 @@ describe('backend delivery app tests', function () {
     request.get(options, function(err, res, body) {
       expect(res.statusCode).to.equal(200);
       expect(body).to.be.an('array').that.has.lengthOf(1);
-      
       done();
     });
   });
@@ -146,6 +145,18 @@ describe('backend delivery app tests', function () {
 
   it("list orders invalid params", function(done) {
     var options = GetOptionsForListOrders("a", "b");
+    request.get(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body).to.be.an('array').that.is.empty;
+      done();
+    });
+  });
+
+  it("list orders no query string", function(done) {
+    var options = {
+      url: Address + "/orders",
+      json: true,
+    };
     request.get(options, function(err, res, body) {
       expect(res.statusCode).to.equal(200);
       expect(body).to.be.an('array').that.is.empty;

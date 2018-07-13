@@ -4,7 +4,7 @@
   "description": "A backend API for delivery.",
   "main": "app.js",
   "scripts": {
-    "test": "mocha"
+    "test": "mocha --exit"
   },
   "author": "Justin Nguyen",
   "license": "ISC",

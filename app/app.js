@@ -1,6 +1,6 @@
-var express = require('express');
+const express = require('express');
 
-var app = express();
+const app = express();
 app.use(express.json());
 
 // Create Google Maps client.
@@ -10,9 +10,9 @@ var googleMapsClient = require('@google/maps').createClient({
 });
 
 // Connect to the database.
-var redis = require('redis');
-var client = redis.createClient(6379, 'redis');
-//var client = redis.createClient(6379, "192.168.99.100");
+const redis = require('redis');
+const client = redis.createClient(6379, 'redis');
+//const client = redis.createClient(6379, "192.168.99.100");
 
 client.on('connect', function() {
  console.log('Redis is now connected!\n');
@@ -29,13 +29,13 @@ client.on('error', function(err) {
 
 const uuidv4 = require('uuid/v4');
 
-var OrdersHashPrefix = "Orders:";
-var OrdersSetKey = "Orders:Ids";
-var IdField = "id";
-var DistanceField = "distance";
-var StatusField = "status";
-var StatusUnassign = "UNASSIGN";
-var StatusTaken = "taken";
+const OrdersHashPrefix = "Orders:";
+const OrdersSetKey = "Orders:Ids";
+const IdField = "id";
+const DistanceField = "distance";
+const StatusField = "status";
+const StatusUnassign = "UNASSIGN";
+const StatusTaken = "taken";
 
 // Setup routes.
 app.post('/order', PostOrder);
@@ -43,11 +43,15 @@ app.put('/order/:id', PutOrderId);
 app.get('/orders', GetOrders);
 
 // Start the server.
-var server = app.listen(8080, function () {
-  var host = server.address().address
-  var port = server.address().port
+var server = module.exports = app.listen(8080, function() {
+  var host = server.address().address;
+  var port = server.address().port;
    
-  console.log("App listening at http://%s:%s", host, port)
+  console.log("App listening at http://%s:%s", host, port);
+});
+
+server.on('close', function(err) {
+  console.log("App closed!");
 });
 
 /**
@@ -76,6 +80,11 @@ function PostOrder(req, res)
   var destination = req.body.destination;
   console.log("Received POST with origin: " + origin + " and " +
     "destination: " + destination + "!\n");
+
+  if (isNaN(origin[0]) || isNaN(origin[1]) || isNaN(destination[0]) || isNaN(destination[1]))
+  {
+    HandleError(res, 500, "Body's origin or destination is invalid.");
+  }
 
   // TODO: Check that orderId doesn't already exist in the database.
   var orderId = uuidv4();

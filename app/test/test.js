@@ -1,9 +1,9 @@
 var request = require('request');
 
-//var Address = "http://192.168.99.100:8080";
-var Address = "http://localhost:8080";
+var Address = "http://192.168.99.100:8080";
+//var Address = "http://localhost:8080";
 
-function PlaceOrder(
+async function PlaceOrder(
   startLatitudeDeg,
   startLongitudeDeg,
   endLatitudeDeg,
@@ -38,7 +38,7 @@ function PlaceOrder(
   );
 }
 
-function TakeOrder(id)
+async function TakeOrder(id)
 {
   console.log("Sending PUT request.");
   
@@ -46,7 +46,7 @@ function TakeOrder(id)
     {
       url: Address + "/order/" + id, 
       json: {
-        "status": "taken"
+        "status": "TAKEN"
       }
     }, 
     function(err, httpResponse, body)
@@ -67,7 +67,7 @@ function TakeOrder(id)
   );
 }
 
-function ListOrders(
+async function ListOrders(
   page,
   limit)
 {
@@ -85,6 +85,7 @@ function ListOrders(
     {
       if (!err && httpResponse.statusCode == 200)
       {
+        console.log("Count: " + body.length);
         console.log("Response GET: " + body);
       }
       else
@@ -95,6 +96,22 @@ function ListOrders(
   );
 }
 
-PlaceOrder(1, 2, 3, 4);
-TakeOrder(9001);
-ListOrders(6, 9);
+async function Test()
+{
+  await PlaceOrder(33.9093817, -118.4238669, 33.8915236, -118.373441);
+  await PlaceOrder("33.9093817", "-118.4238669", "33.8915236", "-118.373441")
+  await TakeOrder("550a41b5-210c-4c7b-a669-ea8fd34bd877");
+  await TakeOrder("e6d88f4f-052b-4c64-bdd0-3b5163da2efe");
+  await TakeOrder("3682a5ab-27a1-49b8-ba0a-1deceaf2b958");
+  await ListOrders(1, 20); // 11
+  await ListOrders(-1, 20);
+  await ListOrders(1, -20);
+  await ListOrders(0, 0);
+  await ListOrders('a', 'a');
+  await ListOrders("b", "b");
+  await ListOrders(1, 2); // 2
+  await ListOrders(11, 1); // 1
+  await ListOrders(1, 10); // 10
+}
+
+Test();

@@ -81,6 +81,11 @@ function PostOrder(req, res)
   console.log("Received POST with origin: " + origin + " and " +
     "destination: " + destination + "!\n");
 
+  if (isNaN(origin[0]) || isNaN(origin[1]) || isNaN(destination[0]) || isNaN(destination[1]))
+  {
+    HandleError(res, 500, "Body's origin or destination is invalid.");
+  }
+
   // TODO: Check that orderId doesn't already exist in the database.
   var orderId = uuidv4();
   var status = "UNASSIGN";

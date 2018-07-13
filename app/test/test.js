@@ -1,171 +1,181 @@
-var request = require('request');
-var expect = require('chai').expect;
+const request = require('request');
+const expect = require('chai').expect;
 
-//var Address = "http://192.168.99.100:8080";
-var Address = "http://localhost:8080";
+//const Address = "http://192.168.99.100:8080";
+const Address = "http://localhost:8080";
 
-async function PlaceOrder(
-  startLatitudeDeg,
-  startLongitudeDeg,
-  endLatitudeDeg,
-  endLongitudeDeg)
-{
-  console.log("Sending POST request.");
-  
-  request.post(
-    {
-      url: Address + "/order", 
-      json: {
-        "origin": [startLatitudeDeg, startLongitudeDeg],
-        "destination": [endLatitudeDeg, endLongitudeDeg]
-      }
-    }, 
-    function(err, httpResponse, body)
-    {
-      if (!err && httpResponse.statusCode == 200)
-      {
-        console.log("Response POST: " + body.id + " " + body.distance + 
-          " " + body.status);
-      }
-      else if (httpResponse.statusCode == 500)
-      {
-        console.log("Response POST: " + body.error);
-      }
-      else
-      {
-        console.log("Response POST: " + err + " " + httpResponse + " " + body + "\n");
-      }
-    }
-  );
-}
+const StatusUnassign = "UNASSIGN";
+const StatusSuccess = "SUCCESS";
+const ErrorOrderTaken = "ORDER_ALREADY_BEEN_TAKEN";
 
-async function TakeOrder(id)
-{
-  console.log("Sending PUT request.");
-  
-  request.put(
-    {
-      url: Address + "/order/" + id, 
-      json: {
-        "status": "TAKEN"
-      }
-    }, 
-    function(err, httpResponse, body)
-    {
-      if (!err && httpResponse.statusCode == 200)
-      {
-        console.log("Response PUT: " + body.status);
-      }
-      else if (httpResponse.statusCode == 409)
-      {
-        console.log("Response PUT: " + body.error + "\n");
-      }
-      else
-      {
-        console.log("Response PUT: " + err + " " + httpResponse + " " + body + "\n");
-      }
-    }
-  );
-}
+var server;
 
-async function ListOrders(
-  page,
-  limit)
-{
-  console.log("Sending GET request.");
-  
-  request.get(
-    {
-      url: Address + "/orders",
-      qs: {
-        "page": page,
-        "limit": limit
-      }
-    }, 
-    function(err, httpResponse, body)
-    {
-      if (!err && httpResponse.statusCode == 200)
-      {
-        console.log("Count: " + body.length);
-        console.log("Response GET: " + body);
-      }
-      else
-      {
-        console.log("Response GET: " + err + " " + httpResponse + " " + body + "\n");
-      }    
-    }
-  );
-}
+before(function() {
+  server = require('../app.js');
+});
 
-async function Test()
-{
-  await PlaceOrder(33.9093817, -118.4238669, 33.8915236, -118.373441);
-  await PlaceOrder("33.9093817", "-118.4238669", "33.8915236", "-118.373441")
-  await TakeOrder("550a41b5-210c-4c7b-a669-ea8fd34bd877");
-  await TakeOrder("e6d88f4f-052b-4c64-bdd0-3b5163da2efe");
-  await TakeOrder("3682a5ab-27a1-49b8-ba0a-1deceaf2b958");
-  await ListOrders(1, 20); // 11
-  await ListOrders(-1, 20);
-  await ListOrders(1, -20);
-  await ListOrders(0, 0);
-  await ListOrders('a', 'a');
-  await ListOrders("b", "b");
-  await ListOrders(1, 2); // 2
-  await ListOrders(11, 1); // 1
-  await ListOrders(1, 10); // 10
-}
-
-//Test();
-
-var StatusUnassign = "UNASSIGN";
-var StatusTaken = "taken";
+after(function() {
+  server.close();
+});
 
 describe('backend delivery app tests', function () {
-  before(async () => {
-    app = require('../app.js');
+  var orderId;
+
+  it('place order with number params', function(done) {
+    var options = GetOptionsForPlaceOrder(
+      22.3312061, 114.1491771, 22.325685, 114.164495);
+    request.post(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      orderId = body.id;
+      expect(body.status).to.equal(StatusUnassign);
+      expect(body.distance).to.equal(2302);
+      done();
+    });
   });
 
-  var persist = "1";
-
-  it('should return 200', function(done) {
+  it('place order with numbers in string params', function(done) {
     var options = GetOptionsForPlaceOrder(
-      33.9093817, -118.4238669, 33.8915236, -118.373441);
+      "33.9093817", "-118.4238669", "33.8915236", "-118.373441");
     request.post(options, function(err, res, body) {
       expect(res.statusCode).to.equal(200);
       expect(body.status).to.equal(StatusUnassign);
       expect(body.distance).to.equal(6412);
-    done();
+      done();
     });
   });
 
-  it('var test', function(done) {
-    console.log("when does this run");
-    done();
+  it('place order error', function(done) {
+    var options = GetOptionsForPlaceOrder("a", "b", "c", "d");
+    request.post(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(500);
+      console.log(body.error);
+      done();
+    });
   });
 
-  after(async () => {
-    require('../app.js').stop();
+  it('take order success', function(done) {
+    var options = GetOptionsForTakeOrder(orderId);
+    request.put(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body.status).to.equal(StatusSuccess);
+      done();
+    });
+  });
+
+  it('take order already been taken', function(done) {
+    var options = GetOptionsForTakeOrder(orderId);
+    request.put(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(409);
+      expect(body.error).to.equal(ErrorOrderTaken);
+      done();
+    });
+  });
+
+  it("take order doesn't exist", function(done) {
+    var options = GetOptionsForTakeOrder("doesNotExistId");
+    request.put(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(409);
+      console.log(body.error);
+      done();
+    });
+  });
+
+  it("list orders page 1 limit 1", function(done) {
+    var options = GetOptionsForListOrders(1, 1);
+    request.get(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body).to.be.an('array').that.has.lengthOf(1);
+      
+      done();
+    });
+  });
+
+  it("list orders page 1 limit 2", function(done) {
+    var options = GetOptionsForListOrders(1, 2);
+    request.get(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body).to.be.an('array').that.has.lengthOf(2);
+      done();
+    });
+  });
+
+  it("list orders page 2 limit 1", function(done) {
+    var options = GetOptionsForListOrders(2, 1);
+    request.get(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body).to.be.an('array').that.has.lengthOf(1);
+      done();
+    });
+  });
+
+  it("list orders high page low limit", function(done) {
+    var options = GetOptionsForListOrders(9999, 1);
+    request.get(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body).to.be.an('array').that.is.empty;
+      done();
+    });
+  });
+
+  it("list orders decimal params", function(done) {
+    var options = GetOptionsForListOrders(1.99, 2.99);
+    request.get(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body).to.be.an('array').that.has.lengthOf(2);
+      done();
+    });
+  });
+
+  it("list orders invalid page", function(done) {
+    var options = GetOptionsForListOrders(-1, 1);
+    request.get(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body).to.be.an('array').that.is.empty;
+      done();
+    });
+  });
+
+  it("list orders invalid limit", function(done) {
+    var options = GetOptionsForListOrders(1, -1);
+    request.get(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body).to.be.an('array').that.is.empty;
+      done();
+    });
+  });
+
+  it("list orders invalid params", function(done) {
+    var options = GetOptionsForListOrders("a", "b");
+    request.get(options, function(err, res, body) {
+      expect(res.statusCode).to.equal(200);
+      expect(body).to.be.an('array').that.is.empty;
+      done();
+    });
   });
 });
 
-function GetOptionsForPlaceOrder(
-  startLatitudeDeg,
-  startLongitudeDeg,
-  endLatitudeDeg,
-  endLongitudeDeg
-)
-{
+/**
+ * Gets the options needed for the request to place an order.
+ * @param {number} startLatDeg 
+ * @param {number} startLonDeg 
+ * @param {number} endLatDeg 
+ * @param {number} endLonDeg 
+ */
+function GetOptionsForPlaceOrder(startLatDeg, startLonDeg, endLatDeg, endLonDeg) {
   return {
     url: Address + "/order", 
     json: {
-      "origin": [startLatitudeDeg, startLongitudeDeg],
-      "destination": [endLatitudeDeg, endLongitudeDeg]
+      "origin": [startLatDeg, startLonDeg],
+      "destination": [endLatDeg, endLonDeg]
     }
   };
 }
 
-function GetOptionsForTakeOrder(id)
-{
+/**
+ * Gets the options needed for the request to take an order.
+ * @param {string} id 
+ */
+function GetOptionsForTakeOrder(id) {
   return {
     url: Address + "/order/" + id, 
     json: {
@@ -174,12 +184,15 @@ function GetOptionsForTakeOrder(id)
   };
 }
 
-function GetOptionsForListOrders(
-  page,
-  limit)
-{
+/**
+ * Gets the options needed for the request to list orders.
+ * @param {number} page 
+ * @param {number} limit 
+ */
+function GetOptionsForListOrders(page, limit) {
   return {
     url: Address + "/orders",
+    json: true,
     qs: {
       "page": page,
       "limit": limit
